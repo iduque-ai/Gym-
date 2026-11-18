@@ -17,6 +17,9 @@ const _leftHandWorld = new THREE.Vector3();
 const _rightHandWorld = new THREE.Vector3();
 const _trapWorld = new THREE.Vector3();
 
+const _leftFootWorld = new THREE.Vector3();
+const _rightFootWorld = new THREE.Vector3();
+
 export interface AnatomicalAthleteRig {
   rootGroup: THREE.Group;
   pelvisGroup: THREE.Group;
@@ -35,6 +38,8 @@ export interface AnatomicalAthleteRig {
   rightKneeGroup: THREE.Group;
   leftAnkleGroup: THREE.Group;
   rightAnkleGroup: THREE.Group;
+  leftFootSoleAnchor: THREE.Group;
+  rightFootSoleAnchor: THREE.Group;
   muscleMaterials: Record<MuscleGroup, THREE.MeshPhysicalMaterial>;
   telemetryGroup: THREE.Group;
   forceArrowGroup: THREE.Group;
@@ -341,7 +346,12 @@ export function buildAnatomicalAthlete(): AnatomicalAthleteRig {
     soleMesh.receiveShadow = true;
     ankleGroup.add(soleMesh);
 
-    return { hipGroup, kneeGroup, ankleGroup };
+    // Grounding sole anchor (bottom center of shoe)
+    const footSoleAnchor = new THREE.Group();
+    footSoleAnchor.position.set(0, -0.069, 0.045);
+    ankleGroup.add(footSoleAnchor);
+
+    return { hipGroup, kneeGroup, ankleGroup, footSoleAnchor };
   };
 
   const leftLeg = buildLeg(-1);
@@ -366,26 +376,26 @@ export function buildAnatomicalAthlete(): AnatomicalAthleteRig {
   const plumbLine = new THREE.Line(plumbGeom, plumbMat);
   telemetryGroup.add(plumbLine);
 
-  // 3D Force Vector Arrow Assembly (Shaft + Cone Head)
+  // 3D Force Vector Arrow Assembly (Proportionate Shaft + Cone Head)
   const forceArrowGroup = new THREE.Group();
   const arrowShaftMat = new THREE.MeshBasicMaterial({
     color: 0xf59e0b,
     transparent: true,
     opacity: 0.88,
   });
-  const arrowShaftGeom = new THREE.CylinderGeometry(0.014, 0.014, 0.55, 14);
+  const arrowShaftGeom = new THREE.CylinderGeometry(0.011, 0.011, 0.32, 14);
   const arrowShaft = new THREE.Mesh(arrowShaftGeom, arrowShaftMat);
-  arrowShaft.position.y = 0.275;
+  arrowShaft.position.y = 0.16;
   forceArrowGroup.add(arrowShaft);
 
-  const arrowConeGeom = new THREE.ConeGeometry(0.042, 0.11, 16);
+  const arrowConeGeom = new THREE.ConeGeometry(0.032, 0.075, 16);
   const arrowCone = new THREE.Mesh(arrowConeGeom, arrowShaftMat);
-  arrowCone.position.y = 0.58;
+  arrowCone.position.y = 0.35;
   forceArrowGroup.add(arrowCone);
   telemetryGroup.add(forceArrowGroup);
 
   // Vertical Bar Path Trajectory Ribbon
-  const ribbonGeom = new THREE.CylinderGeometry(0.008, 0.008, 0.72, 12);
+  const ribbonGeom = new THREE.CylinderGeometry(0.007, 0.007, 0.62, 12);
   const ribbonMat = new THREE.MeshBasicMaterial({
     color: 0x38bdf8,
     transparent: true,
@@ -413,6 +423,8 @@ export function buildAnatomicalAthlete(): AnatomicalAthleteRig {
     rightKneeGroup: rightLeg.kneeGroup,
     leftAnkleGroup: leftLeg.ankleGroup,
     rightAnkleGroup: rightLeg.ankleGroup,
+    leftFootSoleAnchor: leftLeg.footSoleAnchor,
+    rightFootSoleAnchor: rightLeg.footSoleAnchor,
     muscleMaterials,
     telemetryGroup,
     forceArrowGroup,
@@ -447,7 +459,7 @@ export function applyBiomechanicalPoseToScene(
   const d = pose.depthFactor;
   const def = EXERCISE_CATALOG[exerciseId];
 
-  // 1. Configure Athlete Supine vs Standing Orientation
+  // 1. Configure Athlete Supine, Prone, or Standing Orientation
   if (r.athleteLyingOnBench) {
     // Bench Press Supine Position on Competition Bench
     athlete.pelvisGroup.position.set(0, 0.52, 0.24);
@@ -461,8 +473,7 @@ export function applyBiomechanicalPoseToScene(
     athlete.leftAnkleGroup.rotation.set(-0.15, 0, 0);
     athlete.rightAnkleGroup.rotation.set(-0.15, 0, 0);
 
-    // Arms press vertically in World +Y (which is Local +Z inside the -PI/2 X-rotated pelvisGroup).
-    // Keeping shoulderPitch + elbowPitch = -PI/2 keeps forearms 100% vertical throughout the stroke!
+    // Keeping shoulderPitch + elbowPitch = -PI/2 keeps forearms 100% vertical throughout the stroke
     const shoulderPitch = -1.35 + 1.05 * d;
     const elbowPitch = -Math.PI / 2 - shoulderPitch;
     athlete.leftShoulderGroup.rotation.set(shoulderPitch, 0, -0.62);
@@ -470,6 +481,29 @@ export function applyBiomechanicalPoseToScene(
     athlete.leftElbowGroup.rotation.set(elbowPitch, 0, 0);
     athlete.rightElbowGroup.rotation.set(elbowPitch, 0, 0);
     athlete.neckHeadGroup.rotation.set(0, 0, 0);
+  } else if (r.athleteProneBodyPitch !== undefined) {
+    // Prone Bodyweight Exercises (Push-Up & Pike Push-Up)
+    athlete.pelvisGroup.position.set(0, r.pelvisY, r.pelvisZ);
+    athlete.pelvisGroup.rotation.set(r.athleteProneBodyPitch, 0, 0);
+    athlete.torsoGroup.rotation.set(r.torsoPitch, 0, 0);
+    athlete.leftHipGroup.rotation.set(r.leftHipPitch, 0, r.leftHipRoll);
+    athlete.rightHipGroup.rotation.set(r.rightHipPitch, 0, r.rightHipRoll);
+    athlete.leftKneeGroup.rotation.set(r.leftKneePitch, 0, 0);
+    athlete.rightKneeGroup.rotation.set(r.rightKneePitch, 0, 0);
+    athlete.leftAnkleGroup.rotation.set(r.leftAnklePitch, 0, 0);
+    athlete.rightAnkleGroup.rotation.set(r.rightAnklePitch, 0, 0);
+    athlete.neckHeadGroup.rotation.set(r.headPitch, 0, 0);
+    athlete.leftShoulderGroup.rotation.set(r.leftShoulderPitch, 0, r.leftShoulderRoll);
+    athlete.rightShoulderGroup.rotation.set(r.rightShoulderPitch, 0, r.rightShoulderRoll);
+    athlete.leftElbowGroup.rotation.set(r.leftElbowPitch, 0, 0);
+    athlete.rightElbowGroup.rotation.set(r.rightElbowPitch, 0, 0);
+
+    // Anchor hands cleanly at platform floor level (world y = 0.065) so push-ups push off the ground!
+    athlete.rootGroup.updateMatrixWorld(true);
+    athlete.leftHandAnchor.getWorldPosition(_leftHandWorld);
+    athlete.rightHandAnchor.getWorldPosition(_rightHandWorld);
+    const avgHandY = (_leftHandWorld.y + _rightHandWorld.y) * 0.5;
+    athlete.pelvisGroup.position.y += 0.065 - avgHandY;
   } else {
     athlete.pelvisGroup.position.set(0, r.pelvisY, r.pelvisZ);
     athlete.pelvisGroup.rotation.set(0, 0, 0);
@@ -485,22 +519,38 @@ export function applyBiomechanicalPoseToScene(
     athlete.neckHeadGroup.rotation.set(r.headPitch, 0, 0);
 
     if (exerciseId === 'back_squat') {
-      // Angle arms outward and fold forearms back so hands grip the barbell on upper traps
-      athlete.leftShoulderGroup.rotation.set(0.28, 0, -0.78);
-      athlete.rightShoulderGroup.rotation.set(0.28, 0, 0.78);
-      athlete.leftElbowGroup.rotation.set(-2.35, 0, 0);
-      athlete.rightElbowGroup.rotation.set(-2.35, 0, 0);
+      // Positive elbow pitch folds forearms UP and BACK behind shoulders so hands grip the barbell on upper traps
+      athlete.leftShoulderGroup.rotation.set(0.35, 0, -0.68);
+      athlete.rightShoulderGroup.rotation.set(0.35, 0, 0.68);
+      athlete.leftElbowGroup.rotation.set(2.22, 0, 0);
+      athlete.rightElbowGroup.rotation.set(2.22, 0, 0);
     } else {
       athlete.leftShoulderGroup.rotation.set(r.leftShoulderPitch, 0, r.leftShoulderRoll);
       athlete.rightShoulderGroup.rotation.set(r.rightShoulderPitch, 0, r.rightShoulderRoll);
       athlete.leftElbowGroup.rotation.set(r.leftElbowPitch, 0, 0);
       athlete.rightElbowGroup.rotation.set(r.rightElbowPitch, 0, 0);
     }
-  }
 
-  if (exerciseId === 'pull_up') {
-    // Offset athlete slightly forward under the front multi-grip pull-up arch bar
-    athlete.pelvisGroup.position.z = -0.24 + r.pelvisZ;
+    if (exerciseId === 'pull_up') {
+      // Lock athlete's gripping hands directly onto the Power Rack curved pull-up arch bar (world y=2.26, z=-0.25)
+      athlete.rootGroup.updateMatrixWorld(true);
+      athlete.leftHandAnchor.getWorldPosition(_leftHandWorld);
+      athlete.rightHandAnchor.getWorldPosition(_rightHandWorld);
+      const avgHandY = (_leftHandWorld.y + _rightHandWorld.y) * 0.5;
+      const avgHandZ = (_leftHandWorld.z + _rightHandWorld.z) * 0.5;
+      athlete.pelvisGroup.position.y += 2.26 - avgHandY;
+      athlete.pelvisGroup.position.z += -0.25 - avgHandZ;
+    } else {
+      // Exact standing foot sole grounding on Olympic platform (world y = 0.03)
+      athlete.rootGroup.updateMatrixWorld(true);
+      athlete.leftFootSoleAnchor.getWorldPosition(_leftFootWorld);
+      athlete.rightFootSoleAnchor.getWorldPosition(_rightFootWorld);
+      const groundSoleY =
+        exerciseId === 'bulgarian_split_squat'
+          ? _leftFootWorld.y
+          : Math.min(_leftFootWorld.y, _rightFootWorld.y);
+      athlete.pelvisGroup.position.y += 0.032 - groundSoleY;
+    }
   }
 
   // Update world matrices once so implement anchors lock accurately to hands / upper traps
@@ -537,7 +587,9 @@ export function applyBiomechanicalPoseToScene(
     equipment.benchGroup.rotation.y = 0;
     equipment.jCupsGroup.position.y = -0.35;
   } else if (exerciseId === 'bulgarian_split_squat') {
-    equipment.benchGroup.position.set(0, 0.03, -0.68);
+    // Position bench behind right ankle so rear instep rests cleanly atop the pad
+    athlete.rightAnkleGroup.getWorldPosition(_rightFootWorld);
+    equipment.benchGroup.position.set(0, 0.03, _rightFootWorld.z - 0.14);
     equipment.benchGroup.rotation.y = Math.PI / 2;
   } else {
     equipment.jCupsGroup.position.y = 0;
@@ -615,8 +667,8 @@ export function applyBiomechanicalPoseToScene(
 
   // 4. Update 3D Force Vectors & Bar Path Telemetry
   athlete.forceArrowGroup.visible = options.showForceVectors;
-  athlete.plumbLine.visible = options.showForceVectors || options.showBarPath;
-  athlete.barPathRibbon.visible = options.showBarPath;
+  athlete.plumbLine.visible = options.showForceVectors || (options.showBarPath && usesBarbell);
+  athlete.barPathRibbon.visible = options.showBarPath && usesBarbell;
 
   const barZ = usesBarbell ? equipment.barbellGroup.position.z : r.implementZ;
   const barY = usesBarbell ? equipment.barbellGroup.position.y : pose.forceVector.originY;

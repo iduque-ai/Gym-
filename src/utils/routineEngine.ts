@@ -10,7 +10,9 @@ export type ExerciseId =
   | 'pull_up'
   | 'barbell_row'
   | 'bicep_curl'
-  | 'bulgarian_split_squat';
+  | 'bulgarian_split_squat'
+  | 'push_up'
+  | 'pike_pushup';
 
 export type MuscleGroup =
   | 'cuadriceps'
@@ -151,6 +153,7 @@ export interface BiomechanicalPose {
     implementZ: number;
     implementPitch: number;
     athleteLyingOnBench: boolean;
+    athleteProneBodyPitch?: number;
   };
   /** Instantaneous muscle tension (0 to 1) per muscle group */
   muscleTension: Record<MuscleGroup, number>;
@@ -548,6 +551,98 @@ export const EXERCISE_CATALOG: Record<ExerciseId, ExerciseDefinition> = {
     forceVectorDescription: 'Vector unilateral concentrado sobre la extremidad inferior adelantada.',
     defaultCamera: 'isometric',
   },
+  push_up: {
+    id: 'push_up',
+    name: 'Flexiones Estrictas Biomecánicas',
+    category: 'Empuje',
+    equipmentLabel: 'Peso Corporal',
+    requiredEquipment: ['gimnasio_completo', 'mancuernas_barra', 'peso_corporal'],
+    primaryMuscles: ['pectoral', 'triceps'],
+    secondaryMuscles: ['deltoides', 'core'],
+    tempo: '3-1-1-0',
+    cycleDurationSec: 3.8,
+    bodyweightRatioIntermedio: 0.65,
+    phases: {
+      eccentric: {
+        title: 'Descenso en Plancha Rígida (Excéntrica)',
+        cue: 'Desciende en bloque manteniendo glúteos y abdomen contraídos con los codos a 45° respecto al torso.',
+        angleTarget: 'Codo 172° → 82° · Cuerpo en línea recta',
+      },
+      isometric: {
+        title: 'Pausa a 2 cm del Suelo (Isométrica)',
+        cue: 'Frena justo antes de tocar el suelo con las escápulas retraídas y sin hundir la zona lumbar.',
+        angleTarget: 'Codo 82° · Pelvis neutra sin anteversión',
+      },
+      concentric: {
+        title: 'Empuje y Protracción Escapular (Concéntrica)',
+        cue: 'Empuja el suelo con toda la palma de la mano hasta extender codos y separar ligeramente las escápulas arriba.',
+        angleTarget: 'Bloqueo articular a 172° con core activo',
+      },
+    },
+    commonMistakes: [
+      {
+        mistake: 'Hundir la cadera o adelantar el cuello hacia el suelo antes que el pecho',
+        correction: 'Aprieta glúteos y abdomen como en una plancha rígida; pecho y pelvis bajan al mismo tiempo.',
+      },
+      {
+        mistake: 'Abrir los codos a 90° formando una T con el cuerpo',
+        correction: 'Rota las manos ligeramente hacia afuera ("atornillar al suelo") para mantener codos a 45°.',
+      },
+    ],
+    safetyChecklist: [
+      'Manos alineadas bajo los hombros o ligeramente más anchas, dedos abiertos agarrando el suelo',
+      'Línea recta continua de talones, rodillas, cadera, hombros y cabeza',
+      'Protracción escapular completa en el bloqueo superior',
+    ],
+    forceVectorDescription: 'Empuje perpendicular al suelo con estabilización antigravitatoria del raquis lumbar.',
+    defaultCamera: 'isometric',
+  },
+  pike_pushup: {
+    id: 'pike_pushup',
+    name: 'Flexiones en Pica (Press Vertical Corporal)',
+    category: 'Empuje',
+    equipmentLabel: 'Peso Corporal',
+    requiredEquipment: ['gimnasio_completo', 'mancuernas_barra', 'peso_corporal'],
+    primaryMuscles: ['deltoides', 'triceps'],
+    secondaryMuscles: ['core', 'pectoral'],
+    tempo: '2-1-1-0',
+    cycleDurationSec: 3.8,
+    bodyweightRatioIntermedio: 0.55,
+    phases: {
+      eccentric: {
+        title: 'Descenso Diagonal en Trípode (Excéntrica)',
+        cue: 'Lleva la coronilla hacia adelante formando un triángulo entre cabeza y manos mientras flexionas codos.',
+        angleTarget: 'Hombro 155° → 65° · Codo 170° → 80°',
+      },
+      isometric: {
+        title: 'Pausa en Trípode Inferior (Isométrica)',
+        cue: 'Mantén los codos apuntando hacia atrás (sin abrirse hacia afuera) a pocos centímetros del suelo.',
+        angleTarget: 'Codo 80° · Antebrazos casi verticales',
+      },
+      concentric: {
+        title: 'Empuje Vertical hacia Atrás (Concéntrica)',
+        cue: 'Empuja el suelo proyectando los hombros arriba y atrás hacia la línea de los tobillos.',
+        angleTarget: 'Extensión completa con elevación escapular arriba',
+      },
+    },
+    commonMistakes: [
+      {
+        mistake: 'Bajar la cabeza en línea recta entre las manos en lugar de adelante en triángulo',
+        correction: 'Proyecta el peso hacia los dedos adelantando la cabeza para que los antebrazos queden verticales.',
+      },
+      {
+        mistake: 'Dejar caer los codos lateralmente hacia los lados',
+        correction: 'Mantén codos cerrados apuntando hacia las rodillas durante toda la repetición.',
+      },
+    ],
+    safetyChecklist: [
+      'Cadera elevada formando una V invertida estable sobre puntas de pie',
+      'Trayectoria diagonal de la cabeza por delante de la línea de las muñecas',
+      'Empuje completo arriba elevando trapecios para proteger el hombro',
+    ],
+    forceVectorDescription: 'Carga axial oblicua sobre deltoides anterior y tríceps en plano vertical corporal.',
+    defaultCamera: 'lateral',
+  },
 };
 
 export function validateUserProfile(input: {
@@ -696,86 +791,168 @@ export function generateRoutine(profile: UserProfile): GeneratedRoutine {
     recomposicion: 'Recomposición Corporal Estructural',
   };
 
-  const rawTemplates: {
+  const eq = profile.equipment;
+  const pickTemplates = (): {
     title: string;
     focusLabel: string;
     exerciseIds: ExerciseId[];
-  }[] =
-    profile.daysPerWeek <= 3
-      ? [
+  }[] => {
+    if (eq === 'peso_corporal') {
+      if (profile.daysPerWeek <= 3) {
+        return [
           {
-            title: 'Día 1 · Full Body A (Dominante Rodilla y Empuje)',
-            focusLabel: 'Cuádriceps · Pectoral · Dorsal',
-            exerciseIds: ['back_squat', 'bench_press', 'barbell_row', 'bicep_curl'],
+            title: 'Día 1 · Calistenia Full Body A (Empuje y Pierna)',
+            focusLabel: 'Pectoral · Cuádriceps · Dorsal',
+            exerciseIds: ['push_up', 'bulgarian_split_squat', 'pull_up', 'pike_pushup'],
           },
           {
-            title: 'Día 2 · Full Body B (Dominante Cadera y Vertical)',
-            focusLabel: 'Isquiosurales · Deltoides · Dorsal',
-            exerciseIds: ['romanian_deadlift', 'overhead_press', 'pull_up', 'bulgarian_split_squat'],
+            title: 'Día 2 · Calistenia Full Body B (Tracción y Hombro)',
+            focusLabel: 'Dorsal · Deltoides · Glúteos',
+            exerciseIds: ['pull_up', 'pike_pushup', 'bulgarian_split_squat', 'push_up'],
           },
           {
-            title: 'Día 3 · Full Body C (Fuerza Global y Unilateral)',
-            focusLabel: 'Glúteos · Pectoral · Tracción',
-            exerciseIds: ['back_squat', 'bench_press', 'pull_up', 'romanian_deadlift'],
-          },
-        ]
-      : profile.daysPerWeek === 4
-      ? [
-          {
-            title: 'Día 1 · Torso Fuerza y Empuje Horizontal',
-            focusLabel: 'Pectoral · Dorsal · Deltoides',
-            exerciseIds: ['bench_press', 'barbell_row', 'overhead_press', 'bicep_curl'],
-          },
-          {
-            title: 'Día 2 · Pierna Dominante de Rodilla',
-            focusLabel: 'Cuádriceps · Glúteos · Core',
-            exerciseIds: ['back_squat', 'bulgarian_split_squat', 'romanian_deadlift'],
-          },
-          {
-            title: 'Día 3 · Torso Tracción y Empuje Vertical',
-            focusLabel: 'Dorsal · Deltoides · Bíceps',
-            exerciseIds: ['pull_up', 'overhead_press', 'barbell_row', 'bench_press'],
-          },
-          {
-            title: 'Día 4 · Pierna Dominante de Cadera',
-            focusLabel: 'Isquiosurales · Glúteos · Cuádriceps',
-            exerciseIds: ['romanian_deadlift', 'back_squat', 'bulgarian_split_squat'],
-          },
-        ]
-      : [
-          {
-            title: 'Día 1 · Empuje (Pectoral, Hombro y Tríceps)',
-            focusLabel: 'Pectoral · Deltoides · Tríceps',
-            exerciseIds: ['bench_press', 'overhead_press', 'bulgarian_split_squat'],
-          },
-          {
-            title: 'Día 2 · Tracción (Dorsal, Trapecio y Bíceps)',
-            focusLabel: 'Dorsal · Bíceps · Core',
-            exerciseIds: ['pull_up', 'barbell_row', 'bicep_curl'],
-          },
-          {
-            title: 'Día 3 · Pierna Completa (Rodilla y Cadera)',
-            focusLabel: 'Cuádriceps · Isquiosurales · Glúteos',
-            exerciseIds: ['back_squat', 'romanian_deadlift', 'bulgarian_split_squat'],
-          },
-          {
-            title: 'Día 4 · Torso Hipertrofia (Empuje + Tracción)',
-            focusLabel: 'Pectoral · Dorsal · Deltoides',
-            exerciseIds: ['bench_press', 'pull_up', 'overhead_press', 'bicep_curl'],
-          },
-          {
-            title: 'Día 5 · Cadena Posterior y Unilateral',
-            focusLabel: 'Glúteos · Isquiosurales · Dorsal',
-            exerciseIds: ['romanian_deadlift', 'bulgarian_split_squat', 'barbell_row', 'back_squat'],
-          },
-          {
-            title: 'Día 6 · Especialización Fuerza y Brazos',
-            focusLabel: 'Deltoides · Bíceps · Tracción',
-            exerciseIds: ['overhead_press', 'pull_up', 'bicep_curl', 'bench_press'],
+            title: 'Día 3 · Calistenia Full Body C (Resistencia Estructural)',
+            focusLabel: 'Pectoral · Dorsal · Unilateral',
+            exerciseIds: ['push_up', 'pull_up', 'bulgarian_split_squat', 'pike_pushup'],
           },
         ];
+      }
+      if (profile.daysPerWeek === 4) {
+        return [
+          {
+            title: 'Día 1 · Torso Calistenia (Empuje y Tracción)',
+            focusLabel: 'Pectoral · Dorsal · Deltoides',
+            exerciseIds: ['push_up', 'pull_up', 'pike_pushup'],
+          },
+          {
+            title: 'Día 2 · Pierna Unilateral y Estabilidad',
+            focusLabel: 'Cuádriceps · Glúteos · Core',
+            exerciseIds: ['bulgarian_split_squat', 'push_up', 'pull_up'],
+          },
+          {
+            title: 'Día 3 · Torso Vertical y Densidad',
+            focusLabel: 'Deltoides · Dorsal · Tríceps',
+            exerciseIds: ['pike_pushup', 'pull_up', 'push_up'],
+          },
+          {
+            title: 'Día 4 · Pierna Unilateral y Control Excéntrico',
+            focusLabel: 'Glúteos · Cuádriceps · Core',
+            exerciseIds: ['bulgarian_split_squat', 'pike_pushup', 'pull_up'],
+          },
+        ];
+      }
+      return [
+        {
+          title: 'Día 1 · Empuje Corporal (Pectoral y Hombro)',
+          focusLabel: 'Pectoral · Deltoides · Tríceps',
+          exerciseIds: ['push_up', 'pike_pushup', 'bulgarian_split_squat'],
+        },
+        {
+          title: 'Día 2 · Tracción Vertical en Barra',
+          focusLabel: 'Dorsal · Bíceps · Core',
+          exerciseIds: ['pull_up', 'bulgarian_split_squat', 'push_up'],
+        },
+        {
+          title: 'Día 3 · Pierna Unilateral Intensa',
+          focusLabel: 'Cuádriceps · Glúteos · Core',
+          exerciseIds: ['bulgarian_split_squat', 'pike_pushup', 'pull_up'],
+        },
+        {
+          title: 'Día 4 · Torso Fuerza Relativa',
+          focusLabel: 'Pectoral · Dorsal · Deltoides',
+          exerciseIds: ['pull_up', 'push_up', 'pike_pushup'],
+        },
+        {
+          title: 'Día 5 · Volumen Corporal Unilateral',
+          focusLabel: 'Glúteos · Deltoides · Tracción',
+          exerciseIds: ['bulgarian_split_squat', 'pull_up', 'push_up'],
+        },
+        {
+          title: 'Día 6 · Técnica de Empuje Vertical y Control',
+          focusLabel: 'Deltoides · Core · Pectoral',
+          exerciseIds: ['pike_pushup', 'push_up', 'pull_up'],
+        },
+      ];
+    }
 
-  const dayTemplates = rawTemplates.slice(0, profile.daysPerWeek);
+    if (profile.daysPerWeek <= 3) {
+      return [
+        {
+          title: 'Día 1 · Full Body A (Dominante Rodilla y Empuje)',
+          focusLabel: 'Cuádriceps · Pectoral · Dorsal',
+          exerciseIds: ['back_squat', 'bench_press', 'barbell_row', 'bicep_curl'],
+        },
+        {
+          title: 'Día 2 · Full Body B (Dominante Cadera y Vertical)',
+          focusLabel: 'Isquiosurales · Deltoides · Dorsal',
+          exerciseIds: ['romanian_deadlift', 'overhead_press', 'pull_up', 'bulgarian_split_squat'],
+        },
+        {
+          title: 'Día 3 · Full Body C (Fuerza Global y Unilateral)',
+          focusLabel: 'Glúteos · Pectoral · Tracción',
+          exerciseIds: ['back_squat', 'bench_press', 'pull_up', 'romanian_deadlift'],
+        },
+      ];
+    }
+    if (profile.daysPerWeek === 4) {
+      return [
+        {
+          title: 'Día 1 · Torso Fuerza y Empuje Horizontal',
+          focusLabel: 'Pectoral · Dorsal · Deltoides',
+          exerciseIds: ['bench_press', 'barbell_row', 'overhead_press', 'bicep_curl'],
+        },
+        {
+          title: 'Día 2 · Pierna Dominante de Rodilla',
+          focusLabel: 'Cuádriceps · Glúteos · Core',
+          exerciseIds: ['back_squat', 'bulgarian_split_squat', 'romanian_deadlift'],
+        },
+        {
+          title: 'Día 3 · Torso Tracción y Empuje Vertical',
+          focusLabel: 'Dorsal · Deltoides · Bíceps',
+          exerciseIds: ['pull_up', 'overhead_press', 'barbell_row', 'bench_press'],
+        },
+        {
+          title: 'Día 4 · Pierna Dominante de Cadera',
+          focusLabel: 'Isquiosurales · Glúteos · Cuádriceps',
+          exerciseIds: ['romanian_deadlift', 'back_squat', 'bulgarian_split_squat'],
+        },
+      ];
+    }
+    return [
+      {
+        title: 'Día 1 · Empuje (Pectoral, Hombro y Tríceps)',
+        focusLabel: 'Pectoral · Deltoides · Tríceps',
+        exerciseIds: ['bench_press', 'overhead_press', 'bulgarian_split_squat'],
+      },
+      {
+        title: 'Día 2 · Tracción (Dorsal, Trapecio y Bíceps)',
+        focusLabel: 'Dorsal · Bíceps · Core',
+        exerciseIds: ['pull_up', 'barbell_row', 'bicep_curl'],
+      },
+      {
+        title: 'Día 3 · Pierna Completa (Rodilla y Cadera)',
+        focusLabel: 'Cuádriceps · Isquiosurales · Glúteos',
+        exerciseIds: ['back_squat', 'romanian_deadlift', 'bulgarian_split_squat'],
+      },
+      {
+        title: 'Día 4 · Torso Hipertrofia (Empuje + Tracción)',
+        focusLabel: 'Pectoral · Dorsal · Deltoides',
+        exerciseIds: ['bench_press', 'pull_up', 'overhead_press', 'bicep_curl'],
+      },
+      {
+        title: 'Día 5 · Cadena Posterior y Unilateral',
+        focusLabel: 'Glúteos · Isquiosurales · Dorsal',
+        exerciseIds: ['romanian_deadlift', 'bulgarian_split_squat', 'barbell_row', 'back_squat'],
+      },
+      {
+        title: 'Día 6 · Especialización Fuerza y Brazos',
+        focusLabel: 'Deltoides · Bíceps · Tracción',
+        exerciseIds: ['overhead_press', 'pull_up', 'bicep_curl', 'bench_press'],
+      },
+    ];
+  };
+
+  const dayTemplates = pickTemplates().slice(0, profile.daysPerWeek);
 
   const days: RoutineDay[] = dayTemplates.map((tpl, idx) => {
     const exercises: RoutineExerciseItem[] = tpl.exerciseIds.map((exId, exIdx) => {
@@ -842,11 +1019,42 @@ export function calculateBiomechanicalPose(
   const p = ((rawProgress % 1) + 1) % 1;
   const def = EXERCISE_CATALOG[exerciseId];
 
-  let depthFactor = 0;
-  let phaseName: BiomechanicalPose['phaseName'] = 'Excéntrica';
-  let phaseCue = def.phases.eccentric.cue;
+  const isConcentricFirst =
+    exerciseId === 'pull_up' ||
+    exerciseId === 'barbell_row' ||
+    exerciseId === 'bicep_curl';
 
-  if (p < 0.44) {
+  let depthFactor = 0;
+  let phaseName: BiomechanicalPose['phaseName'] = isConcentricFirst
+    ? 'Concéntrica'
+    : 'Excéntrica';
+  let phaseCue = isConcentricFirst
+    ? def.phases.concentric.cue
+    : def.phases.eccentric.cue;
+
+  if (isConcentricFirst) {
+    // Pull / curl starts extended (depthFactor=0) -> Concentric pull to peak (depthFactor=1) -> Isometric peak hold -> Controlled Eccentric return
+    if (p < 0.36) {
+      const t = p / 0.36;
+      depthFactor = 1 - Math.pow(1 - t, 1.8);
+      phaseName = 'Concéntrica';
+      phaseCue = def.phases.concentric.cue;
+    } else if (p < 0.52) {
+      const t = (p - 0.36) / 0.16;
+      depthFactor = 1.0 - 0.015 * Math.sin(Math.PI * t);
+      phaseName = 'Isométrica';
+      phaseCue = def.phases.isometric.cue;
+    } else if (p < 0.92) {
+      const t = (p - 0.52) / 0.40;
+      depthFactor = 0.5 + 0.5 * Math.cos(Math.PI * t);
+      phaseName = 'Excéntrica';
+      phaseCue = def.phases.eccentric.cue;
+    } else {
+      depthFactor = 0;
+      phaseName = 'Excéntrica';
+      phaseCue = def.phases.eccentric.cue;
+    }
+  } else if (p < 0.44) {
     // Smooth cosine ease-in-out for controlled eccentric
     const t = p / 0.44;
     depthFactor = 0.5 - 0.5 * Math.cos(Math.PI * t);
@@ -970,14 +1178,16 @@ export function calculateBiomechanicalPose(
     forceVector.originY = rigRadians.implementY;
     forceVector.originZ = rigRadians.implementZ;
   } else if (exerciseId === 'romanian_deadlift') {
-    // Pure Hip Hinge RDL
+    // Pure Hip Hinge RDL (ankles compensate hip+knee so feet remain flat on platform)
     rigRadians.pelvisY = 0.94 - 0.08 * d;
-    rigRadians.pelvisZ = -0.26 * d; // Hip travels horizontally backward
-    rigRadians.torsoPitch = 1.24 * d; // Spine tilts to ~71 deg keeping strict neutrality
+    rigRadians.pelvisZ = -0.26 * d;
+    rigRadians.torsoPitch = 1.24 * d;
     rigRadians.leftHipPitch = -1.32 * d;
     rigRadians.rightHipPitch = -1.32 * d;
-    rigRadians.leftKneePitch = 0.24 + 0.08 * d; // Fixed soft knee bend (~15-18 deg)
+    rigRadians.leftKneePitch = 0.24 + 0.08 * d;
     rigRadians.rightKneePitch = 0.24 + 0.08 * d;
+    rigRadians.leftAnklePitch = -(rigRadians.leftHipPitch + rigRadians.leftKneePitch);
+    rigRadians.rightAnklePitch = -(rigRadians.rightHipPitch + rigRadians.rightKneePitch);
     // Arms hang straight vertically holding barbell against thighs/shins
     rigRadians.leftShoulderPitch = -1.22 * d;
     rigRadians.rightShoulderPitch = -1.22 * d;
@@ -997,17 +1207,16 @@ export function calculateBiomechanicalPose(
     forceVector.originY = rigRadians.pelvisY;
     forceVector.originZ = rigRadians.pelvisZ;
   } else if (exerciseId === 'overhead_press') {
-    // Standing Strict Military Press (d=0 is clavicle rack, d=1 is full overhead lockout; or invert so d=1 is peak overhead contraction)
-    // Note: in our unified phase model, let's make d=1 peak overhead lockout during concentric/isometric or controlled eccentric
-    const pressHeight = 1 - d; // At d=0 top lockout, at d=1 bottom clavicle rack (consistent with eccentric lowering -> bottom -> concentric drive up!)
+    // Standing Strict Military Press (d=0 top lockout, d=1 bottom clavicle rack pause)
+    const pressHeight = 1 - d;
     rigRadians.pelvisY = 0.95;
-    rigRadians.torsoPitch = -0.05 * (1 - pressHeight);
+    rigRadians.torsoPitch = -0.04 * (1 - pressHeight);
     rigRadians.leftShoulderPitch = -1.15 - 1.75 * pressHeight;
     rigRadians.rightShoulderPitch = -1.15 - 1.75 * pressHeight;
-    rigRadians.leftShoulderRoll = -0.58 + 0.25 * pressHeight;
-    rigRadians.rightShoulderRoll = 0.58 - 0.25 * pressHeight;
-    rigRadians.leftElbowPitch = -2.15 * (1 - pressHeight) - 0.12;
-    rigRadians.rightElbowPitch = -2.15 * (1 - pressHeight) - 0.12;
+    rigRadians.leftShoulderRoll = -0.45 + 0.18 * pressHeight;
+    rigRadians.rightShoulderRoll = 0.45 - 0.18 * pressHeight;
+    rigRadians.leftElbowPitch = -2.12 * (1 - pressHeight) - 0.08;
+    rigRadians.rightElbowPitch = -2.12 * (1 - pressHeight) - 0.08;
     rigRadians.headPitch = -0.12 * (1 - pressHeight);
     rigRadians.implementY = 1.48 + 0.62 * pressHeight;
     rigRadians.implementZ = 0.17 * (1 - pressHeight) + 0.01;
@@ -1020,47 +1229,49 @@ export function calculateBiomechanicalPose(
     forceVector.originY = rigRadians.implementY;
     forceVector.originZ = rigRadians.implementZ;
   } else if (exerciseId === 'pull_up') {
-    // Strict Pronated Pull-Up on Rack Arch Bar
-    const pullHeight = 1 - d; // d=1 is dead hang bottom stretch, d=0 is chin-over-bar peak
+    // Strict Pronated Pull-Up (d=0 dead hang start -> d=1 peak chin-over-bar contraction)
+    const pullHeight = d;
     rigRadians.pelvisY = 1.12 + 0.44 * pullHeight;
-    rigRadians.pelvisZ = 0.04 * pullHeight;
-    rigRadians.torsoPitch = -0.14 * pullHeight; // Slight thoracic extension to meet the bar
-    rigRadians.leftHipPitch = -0.16; // Hollow body
-    rigRadians.rightHipPitch = -0.16;
-    rigRadians.leftKneePitch = 0.35;
-    rigRadians.rightKneePitch = 0.35;
+    rigRadians.pelvisZ = 0.02 * pullHeight;
+    rigRadians.torsoPitch = -0.12 * pullHeight;
+    rigRadians.leftHipPitch = -0.14;
+    rigRadians.rightHipPitch = -0.14;
+    rigRadians.leftKneePitch = 0.34;
+    rigRadians.rightKneePitch = 0.34;
     rigRadians.leftShoulderPitch = -2.92 + 1.45 * pullHeight;
     rigRadians.rightShoulderPitch = -2.92 + 1.45 * pullHeight;
-    rigRadians.leftShoulderRoll = -0.65 - 0.35 * pullHeight;
-    rigRadians.rightShoulderRoll = 0.65 + 0.35 * pullHeight;
-    rigRadians.leftElbowPitch = -0.12 - 1.92 * pullHeight;
-    rigRadians.rightElbowPitch = -0.12 - 1.92 * pullHeight;
-    rigRadians.implementY = 2.22;
+    rigRadians.leftShoulderRoll = -0.48 - 0.34 * pullHeight;
+    rigRadians.rightShoulderRoll = 0.48 + 0.34 * pullHeight;
+    rigRadians.leftElbowPitch = -0.10 - 1.92 * pullHeight;
+    rigRadians.rightElbowPitch = -0.10 - 1.92 * pullHeight;
+    rigRadians.implementY = 2.24;
 
     jointAnglesDeg.knee = 158;
     jointAnglesDeg.hip = 168;
-    jointAnglesDeg.elbow = Math.round(172 - 116 * pullHeight);
+    jointAnglesDeg.elbow = Math.round(172 - 117 * pullHeight);
     jointAnglesDeg.shoulder = Math.round(168 - 95 * pullHeight);
-    jointAnglesDeg.spineInclination = Math.round(10 * pullHeight);
-    forceVector.originY = rigRadians.pelvisY + 0.45;
-    forceVector.originZ = 0;
+    jointAnglesDeg.spineInclination = Math.round(9 * pullHeight);
+    forceVector.originY = rigRadians.pelvisY + 0.35;
+    forceVector.originZ = -0.24;
     forceVector.directionY = -1;
   } else if (exerciseId === 'barbell_row') {
-    // Bent-over Barbell Row
-    const rowPull = 1 - d; // d=1 is bottom protraction stretch, d=0 is peak umbilical contraction
+    // Bent-over Barbell Row (d=0 bottom protraction stretch -> d=1 peak umbilical contraction; ankles compensate hip+knee)
+    const rowPull = d;
     rigRadians.pelvisY = 0.90;
     rigRadians.pelvisZ = -0.22;
-    rigRadians.torsoPitch = 1.05; // Fixed 60-deg hinged torso
+    rigRadians.torsoPitch = 1.05;
     rigRadians.leftHipPitch = -1.12;
     rigRadians.rightHipPitch = -1.12;
     rigRadians.leftKneePitch = 0.42;
     rigRadians.rightKneePitch = 0.42;
+    rigRadians.leftAnklePitch = -(rigRadians.leftHipPitch + rigRadians.leftKneePitch);
+    rigRadians.rightAnklePitch = -(rigRadians.rightHipPitch + rigRadians.rightKneePitch);
     rigRadians.leftShoulderPitch = -1.05 + 0.95 * rowPull;
     rigRadians.rightShoulderPitch = -1.05 + 0.95 * rowPull;
-    rigRadians.leftShoulderRoll = -0.28 - 0.15 * rowPull;
-    rigRadians.rightShoulderRoll = 0.28 + 0.15 * rowPull;
-    rigRadians.leftElbowPitch = -0.15 - 1.65 * rowPull;
-    rigRadians.rightElbowPitch = -0.15 - 1.65 * rowPull;
+    rigRadians.leftShoulderRoll = -0.26 - 0.16 * rowPull;
+    rigRadians.rightShoulderRoll = 0.26 + 0.16 * rowPull;
+    rigRadians.leftElbowPitch = -0.14 - 1.65 * rowPull;
+    rigRadians.rightElbowPitch = -0.14 - 1.65 * rowPull;
     rigRadians.implementY = 0.56 + 0.34 * rowPull;
     rigRadians.implementZ = 0.22 - 0.14 * rowPull;
 
@@ -1072,45 +1283,46 @@ export function calculateBiomechanicalPose(
     forceVector.originY = rigRadians.implementY;
     forceVector.originZ = rigRadians.implementZ;
   } else if (exerciseId === 'bicep_curl') {
-    // Strict Standing Dumbbell Bicep Curl
-    const curlFlex = 1 - d; // d=1 bottom extension, d=0 peak supinated contraction
+    // Strict Standing Dumbbell Bicep Curl (d=0 bottom extension -> d=1 peak supinated contraction)
+    const curlFlex = d;
     rigRadians.pelvisY = 0.95;
-    rigRadians.leftShoulderPitch = -0.10 * curlFlex;
-    rigRadians.rightShoulderPitch = -0.10 * curlFlex;
+    rigRadians.leftShoulderPitch = -0.08 * curlFlex;
+    rigRadians.rightShoulderPitch = -0.08 * curlFlex;
     rigRadians.leftShoulderRoll = -0.14;
     rigRadians.rightShoulderRoll = 0.14;
-    rigRadians.leftElbowPitch = -0.18 - 2.05 * curlFlex;
-    rigRadians.rightElbowPitch = -0.18 - 2.05 * curlFlex;
+    rigRadians.leftElbowPitch = -0.16 - 2.08 * curlFlex;
+    rigRadians.rightElbowPitch = -0.16 - 2.08 * curlFlex;
     rigRadians.implementY = 0.85 + 0.52 * curlFlex;
     rigRadians.implementZ = 0.10 + 0.22 * Math.sin(Math.PI * curlFlex);
 
     jointAnglesDeg.knee = 176;
     jointAnglesDeg.hip = 177;
     jointAnglesDeg.elbow = Math.round(168 - 126 * curlFlex);
-    jointAnglesDeg.shoulder = Math.round(5 + 8 * curlFlex);
+    jointAnglesDeg.shoulder = Math.round(5 + 6 * curlFlex);
     jointAnglesDeg.spineInclination = 2;
     forceVector.originY = 1.15;
     forceVector.originZ = 0.2;
   } else if (exerciseId === 'bulgarian_split_squat') {
-    // Unilateral Bulgarian Split Squat (Left leg forward working leg, Right leg elevated on rear bench)
-    rigRadians.pelvisY = 0.92 - 0.34 * d;
-    rigRadians.pelvisZ = 0.16 - 0.06 * d;
-    rigRadians.torsoPitch = 0.28 + 0.14 * d; // 18-24 deg glute-biased forward torso lean
+    // Unilateral Bulgarian Split Squat (Left leg forward working leg, Right instep on rear bench)
+    rigRadians.pelvisY = 0.90 - 0.30 * d;
+    rigRadians.pelvisZ = 0.14 - 0.05 * d;
+    rigRadians.torsoPitch = 0.26 + 0.14 * d;
     // Front working leg (Left)
-    rigRadians.leftHipPitch = -0.62 - 0.88 * d;
-    rigRadians.leftKneePitch = 0.58 + 1.05 * d;
-    rigRadians.leftAnklePitch = -0.25 * d;
-    // Rear elevated leg (Right)
-    rigRadians.rightHipPitch = 0.45 + 0.12 * d;
-    rigRadians.rightKneePitch = 0.65 + 0.92 * d;
+    rigRadians.leftHipPitch = -0.62 - 0.86 * d;
+    rigRadians.leftKneePitch = 0.58 + 1.02 * d;
+    rigRadians.leftAnklePitch = -(rigRadians.leftHipPitch + rigRadians.leftKneePitch);
+    // Rear elevated leg (Right) rests cleanly on top of bench pad
+    rigRadians.rightHipPitch = 0.42 + 0.14 * d;
+    rigRadians.rightKneePitch = 0.92 + 0.68 * d;
+    rigRadians.rightAnklePitch = -0.35;
     // Dumbbells held at sides
-    rigRadians.leftShoulderPitch = -0.28 * d;
-    rigRadians.rightShoulderPitch = -0.28 * d;
+    rigRadians.leftShoulderPitch = -0.26 * d;
+    rigRadians.rightShoulderPitch = -0.26 * d;
     rigRadians.leftShoulderRoll = -0.16;
     rigRadians.rightShoulderRoll = 0.16;
     rigRadians.leftElbowPitch = -0.12;
     rigRadians.rightElbowPitch = -0.12;
-    rigRadians.implementY = 0.78 - 0.34 * d;
+    rigRadians.implementY = 0.78 - 0.30 * d;
     rigRadians.implementZ = 0.14;
 
     jointAnglesDeg.knee = Math.round(170 - 85 * d);
@@ -1120,6 +1332,65 @@ export function calculateBiomechanicalPose(
     jointAnglesDeg.spineInclination = Math.round(16 + 8 * d);
     forceVector.originY = rigRadians.pelvisY;
     forceVector.originZ = 0.32;
+  } else if (exerciseId === 'push_up') {
+    // Strict Bodyweight Push-Up (Prone horizontal plank lowering to 2 cm above floor)
+    rigRadians.athleteProneBodyPitch = 1.48 - 0.14 * d; // ~85 deg plank descending slightly
+    rigRadians.pelvisY = 0.42 - 0.24 * d;
+    rigRadians.pelvisZ = -0.18;
+    rigRadians.torsoPitch = 0.04;
+    rigRadians.leftHipPitch = -0.04;
+    rigRadians.rightHipPitch = -0.04;
+    rigRadians.leftKneePitch = 0.05;
+    rigRadians.rightKneePitch = 0.05;
+    rigRadians.leftAnklePitch = -0.5;
+    rigRadians.rightAnklePitch = -0.5;
+    // Arms press downward perpendicular to floor
+    rigRadians.leftShoulderPitch = -1.42 + 0.75 * d;
+    rigRadians.rightShoulderPitch = -1.42 + 0.75 * d;
+    rigRadians.leftShoulderRoll = -0.32 - 0.28 * d;
+    rigRadians.rightShoulderRoll = 0.32 + 0.28 * d;
+    rigRadians.leftElbowPitch = -0.10 - 1.42 * d;
+    rigRadians.rightElbowPitch = -0.10 - 1.42 * d;
+    rigRadians.headPitch = -0.45;
+    rigRadians.implementY = 0.48 - 0.22 * d;
+    rigRadians.implementZ = 0.22;
+
+    jointAnglesDeg.knee = 175;
+    jointAnglesDeg.hip = 176;
+    jointAnglesDeg.elbow = Math.round(172 - 90 * d);
+    jointAnglesDeg.shoulder = Math.round(80 - 35 * d);
+    jointAnglesDeg.spineInclination = 84;
+    forceVector.originY = rigRadians.pelvisY + 0.1;
+    forceVector.originZ = 0.22;
+  } else if (exerciseId === 'pike_pushup') {
+    // Bodyweight Pike Push-Up (Inverted V targeting vertical shoulder press mechanics)
+    rigRadians.athleteProneBodyPitch = 2.15 + 0.18 * d; // Steep downward torso angle
+    rigRadians.pelvisY = 0.88 - 0.14 * d;
+    rigRadians.pelvisZ = -0.05;
+    rigRadians.torsoPitch = 0.1;
+    rigRadians.leftHipPitch = -1.45 - 0.12 * d; // V-hinge at hips
+    rigRadians.rightHipPitch = -1.45 - 0.12 * d;
+    rigRadians.leftKneePitch = 0.12;
+    rigRadians.rightKneePitch = 0.12;
+    rigRadians.leftAnklePitch = -0.45;
+    rigRadians.rightAnklePitch = -0.45;
+    rigRadians.leftShoulderPitch = -2.25 + 0.85 * d;
+    rigRadians.rightShoulderPitch = -2.25 + 0.85 * d;
+    rigRadians.leftShoulderRoll = -0.24 - 0.16 * d;
+    rigRadians.rightShoulderRoll = 0.24 + 0.16 * d;
+    rigRadians.leftElbowPitch = -0.12 - 1.45 * d;
+    rigRadians.rightElbowPitch = -0.12 - 1.45 * d;
+    rigRadians.headPitch = -0.3;
+    rigRadians.implementY = 0.55 - 0.22 * d;
+    rigRadians.implementZ = 0.32;
+
+    jointAnglesDeg.knee = 170;
+    jointAnglesDeg.hip = 94;
+    jointAnglesDeg.elbow = Math.round(170 - 90 * d);
+    jointAnglesDeg.shoulder = Math.round(155 - 88 * d);
+    jointAnglesDeg.spineInclination = 55;
+    forceVector.originY = 0.45;
+    forceVector.originZ = 0.30;
   }
 
   // Compute instantaneous muscle tension per muscle group (peaks at d = 1)

@@ -69,6 +69,23 @@ test('generateRoutine creates tailored split matching daysPerWeek, goal, and lev
   assert.equal(firstCompound.sets, 5);
   assert.equal(firstCompound.reps, '4-6');
   assert.ok(firstCompound.targetLoadKg > routine.days[0].exercises[0].targetLoadKg);
+
+  // Verify peso_corporal equipment only selects bodyweight-compatible exercises
+  const bwRoutine = generateRoutine({
+    ...profile,
+    equipment: 'peso_corporal',
+    daysPerWeek: 2,
+  });
+  assert.equal(bwRoutine.days.length, 2);
+  for (const day of bwRoutine.days) {
+    for (const item of day.exercises) {
+      const def = EXERCISE_CATALOG[item.exerciseId];
+      assert.ok(
+        def.requiredEquipment.includes('peso_corporal'),
+        `Expected ${item.exerciseId} to support peso_corporal`
+      );
+    }
+  }
 });
 
 test('calculateRoutineMetrics updates completedSets accurately when sets are checked', () => {
@@ -89,25 +106,37 @@ test('calculateRoutineMetrics updates completedSets accurately when sets are che
   assert.equal(updatedMetrics.completedSets, 2);
 });
 
-test('calculateBiomechanicalPose computes valid joint angles and phases across all 8 3D exercises', () => {
+test('calculateBiomechanicalPose computes valid joint angles and phases across all 10 3D exercises', () => {
   const exerciseIds = Object.keys(EXERCISE_CATALOG) as Array<keyof typeof EXERCISE_CATALOG>;
-  assert.equal(exerciseIds.length, 8);
+  assert.equal(exerciseIds.length, 10);
+
+  const concentricFirstIds = new Set(['pull_up', 'barbell_row', 'bicep_curl']);
 
   for (const id of exerciseIds) {
-    const startPose = calculateBiomechanicalPose(id, 0.02);
-    const bottomPose = calculateBiomechanicalPose(id, 0.50);
-    const concentricPose = calculateBiomechanicalPose(id, 0.72);
+    if (concentricFirstIds.has(id)) {
+      const startPose = calculateBiomechanicalPose(id, 0.02);
+      const peakPose = calculateBiomechanicalPose(id, 0.44);
+      const eccentricPose = calculateBiomechanicalPose(id, 0.72);
 
-    assert.equal(startPose.phaseName, 'Excéntrica');
-    assert.equal(bottomPose.phaseName, 'Isométrica');
-    assert.equal(concentricPose.phaseName, 'Concéntrica');
+      assert.equal(startPose.phaseName, 'Concéntrica');
+      assert.equal(peakPose.phaseName, 'Isométrica');
+      assert.equal(eccentricPose.phaseName, 'Excéntrica');
+      assert.ok(peakPose.depthFactor > 0.95);
+      const primary = EXERCISE_CATALOG[id].primaryMuscles[0];
+      assert.ok(peakPose.muscleTension[primary] >= 0.8);
+    } else {
+      const startPose = calculateBiomechanicalPose(id, 0.02);
+      const bottomPose = calculateBiomechanicalPose(id, 0.50);
+      const concentricPose = calculateBiomechanicalPose(id, 0.72);
 
-    assert.ok(bottomPose.depthFactor > 0.95);
-    assert.ok(startPose.depthFactor < 0.15);
-
-    // Primary muscle must have higher tension than non-involved muscles
-    const primary = EXERCISE_CATALOG[id].primaryMuscles[0];
-    assert.ok(bottomPose.muscleTension[primary] >= 0.8);
+      assert.equal(startPose.phaseName, 'Excéntrica');
+      assert.equal(bottomPose.phaseName, 'Isométrica');
+      assert.equal(concentricPose.phaseName, 'Concéntrica');
+      assert.ok(bottomPose.depthFactor > 0.95);
+      assert.ok(startPose.depthFactor < 0.15);
+      const primary = EXERCISE_CATALOG[id].primaryMuscles[0];
+      assert.ok(bottomPose.muscleTension[primary] >= 0.8);
+    }
   }
 
   // Squat depth check: knee angle decreases from ~176 deg at top to ~85 deg in bottom isometric hold

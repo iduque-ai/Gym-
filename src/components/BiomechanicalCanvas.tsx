@@ -45,11 +45,55 @@ const CAMERA_PRESETS: Record<
   CameraPresetId,
   { pos: [number, number, number]; target: [number, number, number] }
 > = {
-  isometric: { pos: [2.45, 1.72, 2.55], target: [0, 1.05, -0.05] },
-  lateral: { pos: [3.25, 1.32, 0.0], target: [0, 1.02, -0.05] },
-  frontal: { pos: [0.0, 1.42, 3.35], target: [0, 1.05, -0.05] },
-  overhead: { pos: [0.05, 4.15, 0.95], target: [0, 0.95, -0.15] },
+  isometric: { pos: [2.55, 1.72, 2.65], target: [0, 0.98, -0.05] },
+  lateral: { pos: [3.35, 1.28, 0.0], target: [0, 0.96, -0.05] },
+  frontal: { pos: [0.0, 1.38, 3.45], target: [0, 0.98, -0.05] },
+  overhead: { pos: [0.05, 4.15, 0.95], target: [0, 0.92, -0.15] },
 };
+
+function getCameraFraming(
+  presetId: CameraPresetId,
+  exerciseId: ExerciseId,
+  aspect = 1.4
+): { pos: [number, number, number]; target: [number, number, number] } {
+  const base = CAMERA_PRESETS[presetId];
+  const isFloorOrBench =
+    exerciseId === 'bench_press' ||
+    exerciseId === 'push_up' ||
+    exerciseId === 'pike_pushup';
+  const isPullUp = exerciseId === 'pull_up';
+  // Pull back slightly on narrow/portrait mobile containers so barbell plates & rack stay in frame
+  const mobileZoomScale = aspect < 1.15 ? 1.24 : aspect < 1.35 ? 1.12 : 1.0;
+
+  if (isFloorOrBench && presetId !== 'overhead') {
+    return {
+      pos: [
+        base.pos[0] * 0.92 * mobileZoomScale,
+        Math.max(0.95, base.pos[1] - 0.35),
+        base.pos[2] * 0.92 * mobileZoomScale,
+      ],
+      target: [0, 0.56, 0.05],
+    };
+  }
+  if (isPullUp && presetId !== 'overhead') {
+    return {
+      pos: [
+        base.pos[0] * 1.05 * mobileZoomScale,
+        base.pos[1] + 0.25,
+        base.pos[2] * 1.05 * mobileZoomScale,
+      ],
+      target: [0, 1.34, -0.2],
+    };
+  }
+  return {
+    pos: [
+      base.pos[0] * mobileZoomScale,
+      base.pos[1] + (mobileZoomScale > 1 ? 0.08 : 0),
+      base.pos[2] * mobileZoomScale,
+    ],
+    target: base.target,
+  };
+}
 
 // Module-scoped scratch vectors for zero-GC camera damping
 const _desiredCamPos = new THREE.Vector3();
@@ -168,8 +212,18 @@ export const BiomechanicalCanvas: React.FC<BiomechanicalCanvasProps> = ({
     pmremGenerator.dispose();
 
     // 3. Camera & OrbitControls
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 60);
-    const initialPreset = CAMERA_PRESETS[stateRef.current.cameraPreset];
+    const initialAspect = width / Math.max(1, height);
+    const camera = new THREE.PerspectiveCamera(
+      initialAspect < 1.15 ? 46 : 42,
+      initialAspect,
+      0.1,
+      60
+    );
+    const initialPreset = getCameraFraming(
+      stateRef.current.cameraPreset,
+      stateRef.current.exerciseId,
+      initialAspect
+    );
     camera.position.set(...initialPreset.pos);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -355,16 +409,25 @@ export const BiomechanicalCanvas: React.FC<BiomechanicalCanvasProps> = ({
       renderer.compile(scene, camera);
     }
 
-    // 7. Responsive Resize Handler
+    // 7. Responsive Resize Handler + ResizeObserver for Split Studio Container
     const handleResize = () => {
       if (!container) return;
-      const w = container.clientWidth || window.innerWidth;
-      const h = container.clientHeight || window.innerHeight;
-      camera.aspect = w / h;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      const aspect = w / h;
+      camera.fov = aspect < 1.15 ? 46 : 42;
+      camera.aspect = aspect;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      renderer.render(scene, camera);
     };
     window.addEventListener('resize', handleResize);
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => handleResize())
+        : null;
+    resizeObserver?.observe(container);
 
     // 8. Animation Loop with Software-WebGL fenceSync Pacing & 10Hz HUD Telemetry Throttling
     let frameId = 0;
@@ -433,7 +496,11 @@ export const BiomechanicalCanvas: React.FC<BiomechanicalCanvasProps> = ({
 
       // Exponential camera preset damping (1 - Math.exp(-k * dt))
       if (st.isCameraTransitioning) {
-        const preset = CAMERA_PRESETS[st.cameraPreset];
+        const preset = getCameraFraming(
+          st.cameraPreset,
+          st.exerciseId,
+          camera.aspect
+        );
         _desiredCamPos.set(...preset.pos);
         _desiredTargetPos.set(...preset.target);
 
@@ -474,6 +541,7 @@ export const BiomechanicalCanvas: React.FC<BiomechanicalCanvasProps> = ({
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
       window.removeEventListener('resize', handleResize);
+      resizeObserver?.disconnect();
       controls.removeEventListener('start', onControlsStart);
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       controls.dispose();
@@ -490,7 +558,7 @@ export const BiomechanicalCanvas: React.FC<BiomechanicalCanvasProps> = ({
   return (
     <div
       ref={canvasMountRef}
-      className="fixed inset-0 w-screen h-screen overflow-hidden bg-[#090D16] z-0"
+      className="relative w-full h-full overflow-hidden bg-[#090D16]"
       aria-label="Laboratorio Biomecánico 3D interactivo"
     />
   );

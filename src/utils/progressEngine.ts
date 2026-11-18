@@ -457,9 +457,9 @@ export function getSmartCoachRecommendation(
   const def = EXERCISE_CATALOG[summary.exerciseId];
   if (summary.entriesCount === 0) {
     return {
-      headline: `Establece tu Línea Base en ${def.name}`,
+      headline: `Sin registros en ${def.name}`,
       recommendation:
-        'Realiza 2 series de aproximación al 50% y 75% antes de tu primera serie efectiva. Prioriza el tempo controlado y detén la serie dejando 2 repeticiones en recámara (RIR 2).',
+        'Haz 2 series ligeras de aproximación y registra tu primera serie dejando 2 repeticiones en recámara (RIR 2).',
       nextTargetWeightKg: 40,
       nextTargetReps: goal === 'fuerza' ? '5' : '8-10',
     };
@@ -475,16 +475,16 @@ export function getSmartCoachRecommendation(
 
   if (canIncreaseLoad) {
     return {
-      headline: `Listo para Sobrecarga Progresiva (+${increment} kg)`,
-      recommendation: `Completaste ${latest.sets}×${latest.reps} con ${latest.weightKg} kg (RIR ${latest.rir}). Según el principio de Doble Progresión, incrementa la carga a ${nextTargetWeightKg} kg en tu próxima sesión manteniendo el tempo ${def.tempo} sin recortar el rango articular.`,
+      headline: `Sube a ${nextTargetWeightKg} kg (+${increment} kg)`,
+      recommendation: `Completaste ${latest.sets}×${latest.reps} con ${latest.weightKg} kg con buena técnica. En tu próxima sesión sube a ${nextTargetWeightKg} kg manteniendo el control.`,
       nextTargetWeightKg,
       nextTargetReps: goal === 'fuerza' ? '4-6' : '8-10',
     };
   }
 
   return {
-    headline: `Consolida Repeticiones con ${latest.weightKg} kg`,
-    recommendation: `Mantén la carga actual de ${latest.weightKg} kg en la siguiente sesión e intenta añadir +1 repetición por serie con pausas isométricas limpias antes de subir peso.`,
+    headline: `Suma repeticiones con ${latest.weightKg} kg`,
+    recommendation: `Mantén ${latest.weightKg} kg e intenta lograr 1 repetición más por serie antes de subir peso.`,
     nextTargetWeightKg: latest.weightKg,
     nextTargetReps: `${latest.reps + 1}`,
   };
@@ -494,67 +494,67 @@ export const PERSONAL_TRAINER_MASTER_ADVICES: PersonalTrainerAdvice[] = [
   {
     id: 'double-progression',
     category: 'Sobrecarga Progresiva',
-    title: 'Regla de la Doble Progresión (Primero Reps, Luego Kilos)',
+    title: 'Primero repeticiones, después kilos',
     principle:
-      'Si tu rango prescrito es de 8 a 10 repeticiones con 4 series, no subas el peso hasta completar las 4 series de 10 repeticiones con técnica estricta y RIR ≥ 1.',
+      'Si tu objetivo es 4×8–10, no subas peso hasta completar todas las series a 10 reps limpias.',
     actionableTip:
-      'Cuando alcances el tope del rango (4×10), añade +2.5 kg en ejercicios multiarticulares (+1.25 kg en press militar o brazos) y vuelve a empezar en 4×8.',
+      'Al llegar al tope del rango, añade +2,5 kg en básicos (+1,25 kg en hombros o brazos) y vuelve a 8 reps.',
     mistakeToAvoid:
-      'Subir peso cada semana a costa de acortar la profundidad en sentadilla o rebotar la barra en el pecho.',
+      'Subir kilos cada semana recortando la profundidad o rebotando la barra.',
   },
   {
     id: 'bracing-360',
     category: 'Prevención de Errores',
-    title: 'Presión Intraabdominal 360° (Bracing vs. Meter el Ombligo)',
+    title: 'Bloqueo abdominal 360°',
     principle:
-      'La estabilidad espinal bajo cargas axiales depende de crear un cilindro rígido presurizado con el diafragma, transverso abdominal, oblicuos y cuadrado lumbar.',
+      'Tu espalda baja necesita presión uniforme en todo el abdomen y costillas, no meter el ombligo hacia adentro.',
     actionableTip:
-      'Antes de iniciar la fase excéntrica, inhala hacia el abdomen y costillas laterales como si fueras a expandir un cinturón en 360°, y mantén el aire hasta superar el punto de estancamiento.',
+      'Toma aire hacia la tripa y los costados antes de bajar y mantenlo hasta pasar la parte difícil.',
     mistakeToAvoid:
-      'Hundir el abdomen hacia adentro o exhalar todo el aire en el fondo de la sentadilla o peso muerto, perdiendo rigidez lumbar.',
+      'Soltar todo el aire en el punto más bajo de la sentadilla o el peso muerto.',
   },
   {
     id: 'warmup-ramp',
     category: 'Calentamiento y Activación',
-    title: 'Series de Aproximación Neural sin Fatiga (Protocolo Rampa)',
+    title: 'Calienta en rampa sin fatigarte',
     principle:
-      'Calentar no es fatigarse con 20 repeticiones; es potenciar el sistema nervioso (PAP) y lubricar la cápsula articular acercándose progresivamente al peso de trabajo.',
+      'El calentamiento prepara tus articulaciones y sistema nervioso; no debe cansarte antes de las series reales.',
     actionableTip:
-      'Ejecuta: Serie 1 al 50% × 8 reps · Serie 2 al 70% × 4 reps · Serie 3 al 85% × 2 reps · Serie 4 al 92% × 1 rep. Descansa 90s y comienza tus series efectivas.',
+      'Haz 3 aproximaciones rápidas: 50%×8, 70%×4 y 85%×2 antes de cargar el peso del día.',
     mistakeToAvoid:
-      'Llegar cerca del fallo muscular en las series de calentamiento, vaciando el glucógeno y reduciendo el rendimiento en las series reales.',
+      'Hacer series largas al fallo durante el calentamiento.',
   },
   {
     id: 'rir-autoregulation',
     category: 'Recuperación y Volumen',
-    title: 'Autorregulación por RIR (Repeticiones en Recámara 1–2)',
+    title: 'Deja 1–2 repeticiones en recámara (RIR)',
     principle:
-      'La literatura biomecánica demuestra que entrenar a RIR 1–2 en básicos genera el 98% del estímulo hipertrófico del fallo muscular pero reduce la fatiga neuromuscular a la mitad.',
+      'Entrenar cerca del fallo logra casi el mismo estímulo muscular con la mitad de fatiga y menos riesgo de lesión.',
     actionableTip:
-      'Termina tus series de Sentadilla, Peso Muerto Rumano y Press de Banca cuando la velocidad concéntrica disminuya notablemente pero aún pudieras hacer 1 o 2 repeticiones limpias.',
+      'Corta la serie cuando la barra frene claramente y sientas que te quedan 1 o 2 reps limpias.',
     mistakeToAvoid:
-      'Ir al fallo técnico absoluto en la primera serie del día, obligándote a bajar el peso un 20% en las series siguientes.',
+      'Ir al fallo absoluto en la primera serie y hundir el rendimiento del resto.',
   },
   {
     id: 'scapular-control',
     category: 'Prevención de Errores',
-    title: 'Disociación Escapulohumeral en Empujes y Tracciones',
+    title: 'Controla las escápulas',
     principle:
-      'El hombro es la articulación más móvil del cuerpo; requiere que la escápula actúe como plataforma estable en presses y como motor dinámico en tracciones.',
+      'Un hombro estable depende de cómo colocas tus omóplatos en cada empuje y tirón.',
     actionableTip:
-      'En Press de Banca: retrae y deprime escápulas todo el tiempo. En Remos y Dominadas: permite que la escápula se estire controlada en la excéntrica y retráela al iniciar la concéntrica.',
+      'En press de banca junta y baja los hombros; en remos y dominadas abre arriba y junta al tirar.',
     mistakeToAvoid:
-      'Encoger los trapecios hacia las orejas cuando el peso cuesta, pinzando el tendón del supraespinoso.',
+      'Encoger los hombros hacia las orejas cuando pesa la barra.',
   },
   {
     id: 'plantar-tripod',
     category: 'Prevención de Errores',
-    title: 'Trípode Plantar y Torque Externo de Cadera',
+    title: 'Pie firme en tres puntos',
     principle:
-      'La alineación de la rodilla nace en el pie y en la cadera. Si el arco plantar colapsa hacia adentro (pronación), la tibia rota internamente provocando valgo de rodilla.',
+      'Si el arco del pie cede hacia dentro, la rodilla también colapsa hacia dentro al empujar.',
     actionableTip:
-      'Clava tres puntos en el suelo (talón, base del dedo gordo y base del meñique) e intenta "atornillar" los pies contra el suelo hacia afuera sin moverlos.',
+      'Apoya talón, dedo gordo y meñique en el suelo como un trípode estable en sentadillas y peso muerto.',
     mistakeToAvoid:
-      'Usar zapatillas de running con suela blanda de aire/gel para hacer sentadilla o peso muerto, creando una base inestable.',
+      'Entrenar pierna pesada con zapatillas de cámara blanda e inestable.',
   },
 ];

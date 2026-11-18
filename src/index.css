@@ -7,15 +7,32 @@
     --font-mono: 'JetBrains Mono', monospace;
   }
 
+  html,
   body {
     margin: 0;
     padding: 0;
+    width: 100%;
+    max-width: 100%;
     background-color: #090D16;
     color: #F8FAFC;
     font-family: var(--font-sans);
-    overflow: hidden;
-    user-select: none;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
     -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  button,
+  a,
+  select,
+  input[type='range'] {
+    touch-action: manipulation;
   }
 }
 
@@ -30,6 +47,15 @@
 .font-mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Custom subtle scrollbars for drawers */
