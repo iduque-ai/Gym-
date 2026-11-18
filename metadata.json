@@ -1,0 +1,6 @@
+{
+  "name": "Kinesis 3D — Laboratorio de Rutinas y Biomecánica",
+  "description": "Diseñador inteligente de rutinas de gimnasio con modelos tridimensionales articulados para dominar la técnica de ejecución y biomecánica de cada ejercicio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
